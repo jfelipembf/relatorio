@@ -251,7 +251,7 @@ main {
 .topic-card__header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
@@ -260,13 +260,19 @@ main {
   font-size: 16px;
 }
 
+.topic-title--small {
+  font-size: 14px !important;
+}
+
 .badge {
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   background: #4c66eb;
   color: #fff;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge--optional {
