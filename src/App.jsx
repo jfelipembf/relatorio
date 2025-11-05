@@ -14,13 +14,17 @@ import PerformanceTab from './components/PerformanceTab.jsx';
 import EvaluationTab from './components/EvaluationTab.jsx';
 import RankingTab from './components/RankingTab.jsx';
 import ReportTab from './components/ReportTab.jsx';
+import DashboardTab from './components/DashboardTab.jsx';
 import Header from './components/Header.jsx';
+import ToastContainer from './components/ToastContainer.jsx';
+import { useToast } from './contexts/ToastContext';
 
 const currentDate = new Date();
 const initialMonth = MONTHS[currentDate.getMonth()];
 const initialYear = currentDate.getFullYear();
 
 const TABS = [
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'performance', label: 'Desempenho' },
   { id: 'evaluation', label: 'Avaliação de Critérios' },
   { id: 'ranking', label: 'Ranking' },
@@ -28,11 +32,13 @@ const TABS = [
 ];
 
 export default function App() {
+  const { showSuccess, showError } = useToast();
+
   const [professors, setProfessors] = useState([]);
   const [selectedProfessorId, setSelectedProfessorId] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [selectedYear, setSelectedYear] = useState(initialYear);
-  const [activeTab, setActiveTab] = useState('performance');
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   const [performanceData, setPerformanceData] = useState(null);
   const [yearlyPerformanceData, setYearlyPerformanceData] = useState([]);
@@ -46,6 +52,11 @@ export default function App() {
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
   const [isMonthlyRankingLoading, setIsMonthlyRankingLoading] = useState(false);
   const [isOverallRankingLoading, setIsOverallRankingLoading] = useState(false);
+  const [isSavingMetrics, setIsSavingMetrics] = useState(false);
+
+  // Dashboard metrics state
+  const [activeStudents, setActiveStudents] = useState(0);
+  const [churnRate, setChurnRate] = useState(0);
 
   const selectedProfessor = useMemo(
     () => professors.find((professor) => professor.id === selectedProfessorId) ?? null,
@@ -269,10 +280,12 @@ export default function App() {
     const response = await supabase.from('professor_performance').upsert(data);
     if (response.error) {
       console.error('Erro ao salvar desempenho', response.error);
+      showError('Erro ao salvar dados de desempenho');
     } else {
       await fetchPerformance();
       await fetchMonthlyRanking();
       await fetchOverallRanking();
+      showSuccess('Dados de desempenho salvos com sucesso!');
     }
     setIsSavingPerformance(false);
   };
@@ -287,12 +300,62 @@ export default function App() {
     const response = await supabase.from('professor_evaluations').upsert(data);
     if (response.error) {
       console.error('Erro ao salvar avaliação', response.error);
+      showError('Erro ao salvar avaliação');
     } else {
       await fetchEvaluation();
       await fetchMonthlyRanking();
       await fetchOverallRanking();
+      showSuccess('Avaliação salva com sucesso!');
     }
     setIsSavingEvaluation(false);
+  };
+
+  const handleSaveMetrics = async () => {
+    setIsSavingMetrics(true);
+
+    try {
+      const data = {
+        month: selectedMonth,
+        year: selectedYear,
+        active_students: activeStudents,
+        conversion_rate: churnRate
+      };
+
+      // Primeiro tentar atualizar se existir
+      const { data: existing, error: selectError } = await supabase
+        .from('dashboard_metrics')
+        .select('id')
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear)
+        .maybeSingle();
+
+      let response;
+      if (existing) {
+        // Se existe, atualizar
+        response = await supabase
+          .from('dashboard_metrics')
+          .update(data)
+          .eq('month', selectedMonth)
+          .eq('year', selectedYear);
+      } else {
+        // Se não existe, inserir
+        response = await supabase
+          .from('dashboard_metrics')
+          .insert(data);
+      }
+
+      if (response.error) {
+        console.error('Erro ao salvar métricas', response.error);
+        showError('Erro ao salvar métricas');
+      } else {
+        showSuccess('Métricas salvas com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao salvar métricas:', error);
+      showError('Erro ao salvar métricas');
+    }
+
+    setIsSavingMetrics(false);
   };
 
   useEffect(() => {
@@ -311,6 +374,34 @@ export default function App() {
     fetchOverallRanking();
   }, [professors, selectedMonth, selectedYear]);
 
+  const fetchDashboardMetrics = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dashboard_metrics')
+        .select('*')
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao carregar métricas do dashboard', error);
+      } else if (data) {
+        setActiveStudents(data.active_students || 0);
+        setChurnRate(data.conversion_rate || 0);
+      } else {
+        // Se não há dados, limpar os campos
+        setActiveStudents(0);
+        setChurnRate(0);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar métricas:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardMetrics();
+  }, [selectedMonth, selectedYear]);
+
   return (
     <>
       <Header />
@@ -323,6 +414,12 @@ export default function App() {
         onYearChange={setSelectedYear}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
+        activeStudents={activeStudents}
+        churnRate={churnRate}
+        onActiveStudentsChange={setActiveStudents}
+        onChurnRateChange={setChurnRate}
+        onSaveMetrics={handleSaveMetrics}
+        isSavingMetrics={isSavingMetrics}
       />
 
       <div className="content">
@@ -346,6 +443,13 @@ export default function App() {
           <p>Carregando dados...</p>
         ) : (
           <>
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                selectedMonth={selectedMonth}
+                selectedYear={selectedYear}
+              />
+            )}
+
             {activeTab === 'performance' && (
               <PerformanceTab
                 selectedMonth={selectedMonth}
@@ -392,6 +496,7 @@ export default function App() {
         )}
       </div>
     </main>
+    <ToastContainer />
     </>
   );
 }
