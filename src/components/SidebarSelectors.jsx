@@ -11,7 +11,13 @@ export default function SidebarSelectors({
   selectedYear,
   onYearChange,
   selectedMonth,
-  onMonthChange
+  onMonthChange,
+  activeStudents,
+  churnRate,
+  onActiveStudentsChange,
+  onChurnRateChange,
+  onSaveMetrics,
+  isSavingMetrics
 }) {
   return (
     <aside className="sidebar">
@@ -62,6 +68,46 @@ export default function SidebarSelectors({
           ))}
         </select>
       </section>
+
+      <section className="sidebar-metrics">
+        <h3>Métricas Gerais</h3>
+
+        <div className="metric-field">
+          <label htmlFor="active-students">Alunos Ativos</label>
+          <input
+            id="active-students"
+            type="number"
+            min="0"
+            step="1"
+            value={activeStudents || ''}
+            onChange={(event) => onActiveStudentsChange(parseInt(event.target.value) || 0)}
+            placeholder="Ex: 150"
+          />
+        </div>
+
+        <div className="metric-field">
+          <label htmlFor="churn-rate">Taxa de Churn (%)</label>
+          <input
+            id="churn-rate"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={churnRate || ''}
+            onChange={(event) => onChurnRateChange(parseFloat(event.target.value) || 0)}
+            placeholder="Ex: 5.2"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={onSaveMetrics}
+          disabled={isSavingMetrics}
+          className="primary-button save-metrics-btn"
+        >
+          {isSavingMetrics ? 'Salvando...' : 'Salvar Métricas'}
+        </button>
+      </section>
     </aside>
   );
 }
@@ -79,5 +125,11 @@ SidebarSelectors.propTypes = {
   selectedYear: PropTypes.number.isRequired,
   onYearChange: PropTypes.func.isRequired,
   selectedMonth: PropTypes.string.isRequired,
-  onMonthChange: PropTypes.func.isRequired
+  onMonthChange: PropTypes.func.isRequired,
+  activeStudents: PropTypes.number,
+  churnRate: PropTypes.number,
+  onActiveStudentsChange: PropTypes.func.isRequired,
+  onChurnRateChange: PropTypes.func.isRequired,
+  onSaveMetrics: PropTypes.func.isRequired,
+  isSavingMetrics: PropTypes.bool
 };

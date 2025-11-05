@@ -384,3 +384,120 @@ main {
     z-index: 10;
   }
 }
+
+/* Sidebar Metrics Styles */
+.sidebar-metrics {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sidebar-metrics h3 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-field {
+  margin-bottom: 16px;
+}
+
+.metric-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-field input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #ffffff;
+  transition: border-color 0.2s ease;
+}
+
+.metric-field input:focus {
+  outline: none;
+  border-color: #4c66eb;
+  box-shadow: 0 0 0 3px rgba(76, 102, 235, 0.1);
+}
+
+/* Dashboard Charts Row */
+.dashboard-charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+  align-items: start;
+}
+
+.dashboard-charts-row .chart-card {
+  margin: 0;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-charts-row .chart-card h2 {
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-charts-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .dashboard-charts-row .chart-card {
+    min-height: auto;
+  }
+}
+
+/* Ajuste para métricas no dashboard */
+.tab-content .metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.tab-content .metric {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tab-content .metric:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tab-content .metric span {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.tab-content .metric strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+}
