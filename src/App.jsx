@@ -1,13 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from './lib/supabaseClient';
+import { useState, useEffect, useMemo } from 'react';
 import { MONTHS } from './lib/constants';
-import {
-  calculateConversionRate,
-  calculateRenewalRate,
-  calculateOverallEvaluationScore,
-  calculateOverallScore,
-  normalizeRateToScore
-} from './lib/calculations';
 import './styles/app.css';
 import SidebarSelectors from './components/SidebarSelectors.jsx';
 import PerformanceTab from './components/PerformanceTab.jsx';
@@ -17,11 +9,13 @@ import ReportTab from './components/ReportTab.jsx';
 import DashboardTab from './components/DashboardTab.jsx';
 import Header from './components/Header.jsx';
 import ToastContainer from './components/ToastContainer.jsx';
-import { useToast } from './contexts/ToastContext';
-
-const currentDate = new Date();
-const initialMonth = MONTHS[currentDate.getMonth()];
-const initialYear = currentDate.getFullYear();
+import {
+  useDashboard,
+  useProfessors,
+  usePerformance,
+  useEvaluation,
+  useRanking
+} from './hooks';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -32,421 +26,107 @@ const TABS = [
 ];
 
 export default function App() {
-  const { showSuccess, showError } = useToast();
-
-  const [professors, setProfessors] = useState([]);
-  const [selectedProfessorId, setSelectedProfessorId] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
-  const [selectedYear, setSelectedYear] = useState(initialYear);
-  const [activeTab, setActiveTab] = useState('dashboard');
-
-  const [performanceData, setPerformanceData] = useState(null);
-  const [yearlyPerformanceData, setYearlyPerformanceData] = useState([]);
-  const [evaluationData, setEvaluationData] = useState(null);
-
-  const [monthlyRanking, setMonthlyRanking] = useState([]);
-  const [overallRanking, setOverallRanking] = useState([]);
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSavingPerformance, setIsSavingPerformance] = useState(false);
-  const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
-  const [isMonthlyRankingLoading, setIsMonthlyRankingLoading] = useState(false);
-  const [isOverallRankingLoading, setIsOverallRankingLoading] = useState(false);
-  const [isSavingMetrics, setIsSavingMetrics] = useState(false);
-
-  // Dashboard metrics state
+  // Estados locais para dashboard metrics
   const [activeStudents, setActiveStudents] = useState(0);
   const [churnRate, setChurnRate] = useState(0);
+  const [isSavingMetrics, setIsSavingMetrics] = useState(false);
 
+  // Estados de navegação
+  const [selectedProfessorId, setSelectedProfessorId] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Hooks customizados
+  const { professors } = useProfessors();
+  const dashboard = useDashboard();
+  const performance = usePerformance(selectedProfessorId, selectedMonth, selectedYear);
+  const evaluation = useEvaluation(selectedProfessorId, selectedMonth, selectedYear);
+  const ranking = useRanking(selectedMonth, selectedYear);
+
+  // Estado derivado para professor selecionado
   const selectedProfessor = useMemo(
     () => professors.find((professor) => professor.id === selectedProfessorId) ?? null,
     [professors, selectedProfessorId]
   );
 
-  const fetchProfessors = async () => {
-    const { data, error } = await supabase
-      .from('professors')
-      .select('*')
-      .order('first_name', { ascending: true });
-
-    if (error) {
-      console.error('Erro ao carregar professores', error);
-      return;
-    }
-    setProfessors(data);
-    if (!selectedProfessorId && data.length) {
-      setSelectedProfessorId(data[0].id);
-    }
-  };
-
-  const fetchPerformance = async () => {
-    if (!selectedProfessorId) return;
-    setIsLoading(true);
-
-    const { data: monthData, error: monthError } = await supabase
-      .from('professor_performance')
-      .select('*')
-      .eq('professor_id', selectedProfessorId)
-      .eq('month', selectedMonth)
-      .eq('year', selectedYear)
-      .maybeSingle();
-
-    if (monthError && monthError.code !== 'PGRST116') {
-      console.error('Erro ao carregar desempenho mensal', monthError);
-    } else {
-      setPerformanceData(monthData);
-    }
-
-    const { data: yearData, error: yearError } = await supabase
-      .from('professor_performance')
-      .select('*')
-      .eq('professor_id', selectedProfessorId)
-      .eq('year', selectedYear);
-
-    if (yearError) {
-      console.error('Erro ao carregar histórico anual', yearError);
-      setYearlyPerformanceData([]);
-    } else {
-      setYearlyPerformanceData(yearData ?? []);
-    }
-
-    setIsLoading(false);
-  };
-
-  const fetchEvaluation = async () => {
-    if (!selectedProfessorId) return;
-    setIsLoading(true);
-
-    const { data, error } = await supabase
-      .from('professor_evaluations')
-      .select('*')
-      .eq('professor_id', selectedProfessorId)
-      .eq('month', selectedMonth)
-      .eq('year', selectedYear)
-      .maybeSingle();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Erro ao carregar avaliação', error);
-      setEvaluationData(null);
-    } else {
-      setEvaluationData(data);
-    }
-
-    setIsLoading(false);
-  };
-
-  const fetchMonthlyRanking = async () => {
-    setIsMonthlyRankingLoading(true);
-
-    const [performanceResponse, evaluationResponse] = await Promise.all([
-      supabase
-        .from('professor_performance')
-        .select('*')
-        .eq('month', selectedMonth)
-        .eq('year', selectedYear),
-      supabase
-        .from('professor_evaluations')
-        .select('*')
-        .eq('month', selectedMonth)
-        .eq('year', selectedYear)
-    ]);
-
-    if (performanceResponse.error) {
-      console.error('Erro ao carregar ranking (desempenho)', performanceResponse.error);
-    }
-    if (evaluationResponse.error) {
-      console.error('Erro ao carregar ranking (avaliação)', evaluationResponse.error);
-    }
-
-    const performanceByProfessor = new Map(
-      (performanceResponse.data ?? []).map((item) => [item.professor_id, item])
-    );
-    const evaluationByProfessor = new Map(
-      (evaluationResponse.data ?? []).map((item) => [item.professor_id, item])
-    );
-
-    const rows = professors.map((professor) => {
-      const perf = performanceByProfessor.get(professor.id);
-      const evalRow = evaluationByProfessor.get(professor.id);
-
-      const conversionRate = calculateConversionRate(
-        perf?.experimental_classes ?? 0,
-        perf?.conversions ?? 0
-      );
-      const renewalRate = calculateRenewalRate(
-        perf?.students_to_renew ?? 0,
-        perf?.renewals ?? 0
-      );
-      const performanceScore = perf ? normalizeRateToScore(conversionRate, renewalRate) : null;
-
-      const evaluationScore = evalRow ? calculateOverallEvaluationScore(evalRow) : null;
-
-      const overallScore = calculateOverallScore(performanceScore, evaluationScore);
-
-      return {
-        professorId: professor.id,
-        name: `${professor.first_name} ${professor.last_name}`,
-        performanceScore,
-        evaluationScore,
-        overallScore
-      };
-    });
-
-    rows.sort((a, b) => (b.overallScore ?? -1) - (a.overallScore ?? -1));
-    setMonthlyRanking(rows);
-    setIsMonthlyRankingLoading(false);
-  };
-
-  const fetchOverallRanking = async () => {
-    setIsOverallRankingLoading(true);
-
-    const [performanceResponse, evaluationResponse] = await Promise.all([
-      supabase.from('professor_performance').select('*'),
-      supabase.from('professor_evaluations').select('*')
-    ]);
-
-    if (performanceResponse.error) {
-      console.error('Erro ao carregar ranking geral (desempenho)', performanceResponse.error);
-    }
-    if (evaluationResponse.error) {
-      console.error('Erro ao carregar ranking geral (avaliação)', evaluationResponse.error);
-    }
-
-    const performanceGrouped = new Map();
-    (performanceResponse.data ?? []).forEach((record) => {
-      const list = performanceGrouped.get(record.professor_id) ?? [];
-      list.push(record);
-      performanceGrouped.set(record.professor_id, list);
-    });
-
-    const evaluationGrouped = new Map();
-    (evaluationResponse.data ?? []).forEach((record) => {
-      const list = evaluationGrouped.get(record.professor_id) ?? [];
-      list.push(record);
-      evaluationGrouped.set(record.professor_id, list);
-    });
-
-    const rows = professors.map((professor) => {
-      const perfRecords = performanceGrouped.get(professor.id) ?? [];
-      const evalRecords = evaluationGrouped.get(professor.id) ?? [];
-
-      const perfScores = perfRecords.map((record) => {
-        const conversionRate = record.conversion_rate ?? calculateConversionRate(
-          record.experimental_classes ?? 0,
-          record.conversions ?? 0
-        );
-        const renewalRate = record.renewal_rate ?? calculateRenewalRate(
-          record.students_to_renew ?? 0,
-          record.renewals ?? 0
-        );
-        return normalizeRateToScore(conversionRate, renewalRate);
-      });
-
-      const performanceScore = perfScores.length
-        ? perfScores.reduce((acc, curr) => acc + curr, 0) / perfScores.length
-        : null;
-
-      const evalScores = evalRecords
-        .map((record) => calculateOverallEvaluationScore(record))
-        .filter((value) => value != null);
-
-      const evaluationScore = evalScores.length
-        ? evalScores.reduce((acc, curr) => acc + curr, 0) / evalScores.length
-        : null;
-
-      const overallScore = calculateOverallScore(performanceScore, evaluationScore);
-
-      return {
-        professorId: professor.id,
-        name: `${professor.first_name} ${professor.last_name}`,
-        performanceScore,
-        evaluationScore,
-        overallScore
-      };
-    });
-
-    rows.sort((a, b) => (b.overallScore ?? -1) - (a.overallScore ?? -1));
-    setOverallRanking(rows);
-    setIsOverallRankingLoading(false);
-  };
-
-  const handleSavePerformance = async (payload) => {
-    if (!selectedProfessorId) return;
-    setIsSavingPerformance(true);
-    const data = {
-      ...payload,
-      professor_id: selectedProfessorId
-    };
-    const response = await supabase.from('professor_performance').upsert(data);
-    if (response.error) {
-      console.error('Erro ao salvar desempenho', response.error);
-      showError('Erro ao salvar dados de desempenho');
-    } else {
-      await fetchPerformance();
-      await fetchMonthlyRanking();
-      await fetchOverallRanking();
-      showSuccess('Dados de desempenho salvos com sucesso!');
-    }
-    setIsSavingPerformance(false);
-  };
-
-  const handleSaveEvaluation = async (payload) => {
-    if (!selectedProfessorId) return;
-    setIsSavingEvaluation(true);
-    const data = {
-      professor_id: selectedProfessorId,
-      ...payload
-    };
-    const response = await supabase.from('professor_evaluations').upsert(data);
-    if (response.error) {
-      console.error('Erro ao salvar avaliação', response.error);
-      showError('Erro ao salvar avaliação');
-    } else {
-      await fetchEvaluation();
-      await fetchMonthlyRanking();
-      await fetchOverallRanking();
-      showSuccess('Avaliação salva com sucesso!');
-    }
-    setIsSavingEvaluation(false);
-  };
-
+  // Funções simplificadas
   const handleSaveMetrics = async () => {
     setIsSavingMetrics(true);
-
     try {
-      const data = {
-        month: selectedMonth,
-        year: selectedYear,
-        active_students: activeStudents,
-        conversion_rate: churnRate
-      };
-
-      // Primeiro tentar atualizar se existir
-      const { data: existing, error: selectError } = await supabase
-        .from('dashboard_metrics')
-        .select('id')
-        .eq('month', selectedMonth)
-        .eq('year', selectedYear)
-        .maybeSingle();
-
-      let response;
-      if (existing) {
-        // Se existe, atualizar
-        response = await supabase
-          .from('dashboard_metrics')
-          .update(data)
-          .eq('month', selectedMonth)
-          .eq('year', selectedYear);
-      } else {
-        // Se não existe, inserir
-        response = await supabase
-          .from('dashboard_metrics')
-          .insert(data);
-      }
-
-      if (response.error) {
-        console.error('Erro ao salvar métricas', response.error);
-        showError('Erro ao salvar métricas');
-      } else {
-        showSuccess('Métricas salvas com sucesso!');
-      }
+      await dashboard.saveMetrics(selectedMonth, selectedYear, activeStudents, churnRate);
     } catch (error) {
       console.error('Erro ao salvar métricas:', error);
-      showError('Erro ao salvar métricas');
     }
-
     setIsSavingMetrics(false);
   };
 
+  // Carregar dados do dashboard quando necessário
   useEffect(() => {
-    fetchProfessors();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedProfessorId) return;
-    fetchPerformance();
-    fetchEvaluation();
-  }, [selectedProfessorId, selectedMonth, selectedYear]);
-
-  useEffect(() => {
-    if (!professors.length) return;
-    fetchMonthlyRanking();
-    fetchOverallRanking();
-  }, [professors, selectedMonth, selectedYear]);
-
-  const fetchDashboardMetrics = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('dashboard_metrics')
-        .select('*')
-        .eq('month', selectedMonth)
-        .eq('year', selectedYear)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao carregar métricas do dashboard', error);
-      } else if (data) {
-        setActiveStudents(data.active_students || 0);
-        setChurnRate(data.conversion_rate || 0);
+    const loadMetrics = async () => {
+      const metrics = await dashboard.loadMetrics(selectedMonth, selectedYear);
+      if (metrics) {
+        setActiveStudents(metrics.active_students || 0);
+        setChurnRate(metrics.conversion_rate || 0);
       } else {
-        // Se não há dados, limpar os campos
         setActiveStudents(0);
         setChurnRate(0);
       }
-    } catch (error) {
-      console.error('Erro ao buscar métricas:', error);
-    }
-  };
+    };
+    loadMetrics();
+  }, [selectedMonth, selectedYear, dashboard]);
 
+  // Carregar dados do dashboard apenas quando a aba dashboard for ativada pela primeira vez ou quando mudar mês/ano
   useEffect(() => {
-    fetchDashboardMetrics();
-  }, [selectedMonth, selectedYear]);
+    if (activeTab === 'dashboard' && dashboard.data.length === 0) {
+      dashboard.loadHistoricalData(selectedMonth, selectedYear);
+    }
+  }, [activeTab, dashboard]);
 
   return (
     <>
       <Header />
       <main>
-      <SidebarSelectors
-        professors={professors}
-        selectedProfessorId={selectedProfessorId}
-        onProfessorChange={setSelectedProfessorId}
-        selectedYear={selectedYear}
-        onYearChange={setSelectedYear}
-        selectedMonth={selectedMonth}
-        onMonthChange={setSelectedMonth}
-        activeStudents={activeStudents}
-        churnRate={churnRate}
-        onActiveStudentsChange={setActiveStudents}
-        onChurnRateChange={setChurnRate}
-        onSaveMetrics={handleSaveMetrics}
-        isSavingMetrics={isSavingMetrics}
-      />
+        <SidebarSelectors
+          professors={professors}
+          selectedProfessorId={selectedProfessorId}
+          onProfessorChange={setSelectedProfessorId}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          selectedMonth={selectedMonth}
+          onMonthChange={setSelectedMonth}
+          activeStudents={activeStudents}
+          churnRate={churnRate}
+          onActiveStudentsChange={setActiveStudents}
+          onChurnRateChange={setChurnRate}
+          onSaveMetrics={handleSaveMetrics}
+          isSavingMetrics={isSavingMetrics}
+        />
 
-      <div className="content">
-        <nav className="tabs">
-          {TABS.map((tab) => (
-            <button
-              key={`${tab.id}-${activeTab === tab.id ? 'active' : 'inactive'}`}
-              type="button"
-              className={activeTab === tab.id ? 'active' : ''}
-              onClick={(event) => {
-                event.preventDefault();
-                setActiveTab(tab.id);
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+        <div className="content">
+          <nav className="tabs">
+            {TABS.map((tab) => (
+              <button
+                key={`${tab.id}-${activeTab === tab.id ? 'active' : 'inactive'}`}
+                type="button"
+                className={activeTab === tab.id ? 'active' : ''}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setActiveTab(tab.id);
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
-        {isLoading && !selectedProfessor ? (
-          <p>Carregando dados...</p>
-        ) : (
           <>
             {activeTab === 'dashboard' && (
               <DashboardTab
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
+                dashboardData={dashboard.data}
+                isLoading={dashboard.isLoading}
               />
             )}
 
@@ -454,20 +134,20 @@ export default function App() {
               <PerformanceTab
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                initialData={performanceData}
-                yearlyData={yearlyPerformanceData}
-                onSave={handleSavePerformance}
-                isSaving={isSavingPerformance}
+                initialData={performance.data}
+                yearlyData={performance.yearlyData}
+                onSave={performance.saveData}
+                isSaving={performance.isSaving}
               />
             )}
 
             {activeTab === 'evaluation' && (
               <EvaluationTab
-                evaluationData={evaluationData}
+                evaluationData={evaluation.data}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                onSave={handleSaveEvaluation}
-                isSaving={isSavingEvaluation}
+                onSave={evaluation.saveData}
+                isSaving={evaluation.isSaving}
               />
             )}
 
@@ -475,10 +155,10 @@ export default function App() {
               <RankingTab
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                monthlyRanking={monthlyRanking}
-                overallRanking={overallRanking}
-                isMonthlyLoading={isMonthlyRankingLoading}
-                isOverallLoading={isOverallRankingLoading}
+                monthlyRanking={ranking.monthlyRanking}
+                overallRanking={ranking.overallRanking}
+                isMonthlyLoading={ranking.isMonthlyLoading}
+                isOverallLoading={ranking.isOverallLoading}
               />
             )}
 
@@ -487,16 +167,15 @@ export default function App() {
                 professor={selectedProfessor}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                performanceData={performanceData}
-                evaluationData={evaluationData}
-                overallRanking={overallRanking}
+                performanceData={performance.data}
+                evaluationData={evaluation.data}
+                overallRanking={ranking.overallRanking}
               />
             )}
           </>
-        )}
-      </div>
-    </main>
-    <ToastContainer />
+        </div>
+      </main>
+      <ToastContainer />
     </>
   );
 }
