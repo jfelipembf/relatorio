@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { calculateDashboardMetrics } from '../lib/dashboardCalculations';
 import { calculateMonthlyRanking, calculateOverallRanking } from '../lib/rankingCalculations';
-import { MONTHS } from '../lib/constants';
+
 
 const SupabaseContext = createContext();
 
@@ -81,7 +81,6 @@ export const SupabaseProvider = ({ children }) => {
 
       const performanceData = performanceResponse.data || [];
       const evaluationData = evaluationResponse.data || [];
-      const professorsData = professorsResponse.data || [];
       const dashboardData = dashboardResponse.data || [];
 
       return calculateDashboardMetrics(

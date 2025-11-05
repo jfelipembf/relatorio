@@ -201,7 +201,7 @@ export default function EvaluationTab({
                 return (
                   <article className="topic-card" key={columnKey}>
                     <div className="topic-card__header">
-                      <h3>{topic.label}</h3>
+                      <h3 className={topic.label.length > 25 ? 'topic-title--small' : ''}>{topic.label}</h3>
                       <span className={clsx('badge', { 'badge--optional': topic.requireEvaluationMonth })}>
                         Nota: {formValues[columnKey]}
                       </span>

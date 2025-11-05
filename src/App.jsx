@@ -20,7 +20,7 @@ import {
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'performance', label: 'Desempenho' },
-  { id: 'evaluation', label: 'Avaliação de Critérios' },
+  { id: 'evaluation', label: 'Critérios de Avaliação' },
   { id: 'ranking', label: 'Ranking' },
   { id: 'report', label: 'Relatório' }
 ];
@@ -30,6 +30,7 @@ export default function App() {
   const [activeStudents, setActiveStudents] = useState(0);
   const [churnRate, setChurnRate] = useState(0);
   const [isSavingMetrics, setIsSavingMetrics] = useState(false);
+  const [isEditingMetrics, setIsEditingMetrics] = useState(false);
 
   // Estados de navegação
   const [selectedProfessorId, setSelectedProfessorId] = useState(null);
@@ -39,7 +40,7 @@ export default function App() {
 
   // Hooks customizados
   const { professors } = useProfessors();
-  const dashboard = useDashboard();
+  const dashboardHook = useDashboard();
   const performance = usePerformance(selectedProfessorId, selectedMonth, selectedYear);
   const evaluation = useEvaluation(selectedProfessorId, selectedMonth, selectedYear);
   const ranking = useRanking(selectedMonth, selectedYear);
@@ -54,34 +55,54 @@ export default function App() {
   const handleSaveMetrics = async () => {
     setIsSavingMetrics(true);
     try {
-      await dashboard.saveMetrics(selectedMonth, selectedYear, activeStudents, churnRate);
+      await dashboardHook.saveMetrics(selectedMonth, selectedYear, activeStudents, churnRate);
+      setIsEditingMetrics(false); // Após salvar, não está mais editando
     } catch (error) {
       console.error('Erro ao salvar métricas:', error);
     }
     setIsSavingMetrics(false);
   };
 
+  const handleActiveStudentsChange = (value) => {
+    setActiveStudents(value);
+    setIsEditingMetrics(true);
+  };
+
+  const handleChurnRateChange = (value) => {
+    setChurnRate(value);
+    setIsEditingMetrics(true);
+  };
+
   // Carregar dados do dashboard quando necessário
   useEffect(() => {
     const loadMetrics = async () => {
-      const metrics = await dashboard.loadMetrics(selectedMonth, selectedYear);
-      if (metrics) {
-        setActiveStudents(metrics.active_students || 0);
-        setChurnRate(metrics.conversion_rate || 0);
-      } else {
-        setActiveStudents(0);
-        setChurnRate(0);
+      try {
+        const metrics = await dashboardHook.loadMetrics(selectedMonth, selectedYear);
+
+        // Só carrega dados se não estiver editando
+        if (!isEditingMetrics) {
+          if (metrics) {
+            setActiveStudents(metrics.active_students || 0);
+            setChurnRate(metrics.conversion_rate || 0);
+          } else {
+            setActiveStudents(0);
+            setChurnRate(0);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar métricas:', error);
       }
     };
+
     loadMetrics();
-  }, [selectedMonth, selectedYear, dashboard]);
+  }, [selectedMonth, selectedYear, dashboardHook]);
 
   // Carregar dados do dashboard apenas quando a aba dashboard for ativada pela primeira vez ou quando mudar mês/ano
   useEffect(() => {
-    if (activeTab === 'dashboard' && dashboard.data.length === 0) {
-      dashboard.loadHistoricalData(selectedMonth, selectedYear);
+    if (activeTab === 'dashboard' && dashboardHook.data.length === 0) {
+      dashboardHook.loadHistoricalData(selectedMonth, selectedYear);
     }
-  }, [activeTab, dashboard]);
+  }, [activeTab, dashboardHook]);
 
   return (
     <>
@@ -97,8 +118,8 @@ export default function App() {
           onMonthChange={setSelectedMonth}
           activeStudents={activeStudents}
           churnRate={churnRate}
-          onActiveStudentsChange={setActiveStudents}
-          onChurnRateChange={setChurnRate}
+          onActiveStudentsChange={handleActiveStudentsChange}
+          onChurnRateChange={handleChurnRateChange}
           onSaveMetrics={handleSaveMetrics}
           isSavingMetrics={isSavingMetrics}
         />
@@ -125,8 +146,8 @@ export default function App() {
               <DashboardTab
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                dashboardData={dashboard.data}
-                isLoading={dashboard.isLoading}
+                dashboardData={dashboardHook.data}
+                isLoading={dashboardHook.isLoading}
               />
             )}
 

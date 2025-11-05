@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import Plot from 'react-plotly.js';
 import { calculateGeneralDashboardMetrics, prepareDashboardChartData } from '../lib/dashboardCalculations';
+import { generateSmartMessages } from '../lib/dashboardMessages';
 
 export default function DashboardTab({ selectedMonth, selectedYear, dashboardData, isLoading }) {
   // Calcular métricas gerais dos últimos 12 meses
@@ -12,6 +13,11 @@ export default function DashboardTab({ selectedMonth, selectedYear, dashboardDat
   // Preparar dados para os gráficos
   const chartData = useMemo(() => {
     return prepareDashboardChartData(dashboardData);
+  }, [dashboardData]);
+
+  // Gerar mensagens inteligentes
+  const smartMessages = useMemo(() => {
+    return generateSmartMessages(dashboardData);
   }, [dashboardData]);
 
   if (isLoading) {
@@ -26,6 +32,55 @@ export default function DashboardTab({ selectedMonth, selectedYear, dashboardDat
 
   return (
     <div className="tab-content">
+      {/* Mensagens inteligentes para Zu */}
+      {smartMessages && (
+        <div className="card">
+          <h2>💬 Mensagens para você, Zu</h2>
+          <div className="messages-grid">
+            {smartMessages.activeStudents && (
+              <div className="message-card">
+                <h4>👥 Alunos Ativos</h4>
+                <p>{smartMessages.activeStudents}</p>
+              </div>
+            )}
+            {smartMessages.churnRate && (
+              <div className="message-card">
+                <h4 className="message-card-header">
+                  📊 Taxa de Churn
+                  <div className="tooltip-container">
+                    <span className="info-icon">ℹ️</span>
+                    <div className="tooltip">
+                      <div className="tooltip-title">O que é Churn?</div>
+                      <div className="tooltip-content">
+                        • <strong>Taxa de evasão</strong> de alunos<br/>
+                        • <em>Quando alunos não renovam seus planos</em><br/>
+                        • Pode ser por <strong>insatisfação</strong> ou outros motivos<br/>
+                        • <span className="text-danger">Quando AUMENTA</span>: mais alunos saindo (ruim)<br/>
+                        • <span className="text-success">Quando DIMINUI</span>: menos alunos saindo (bom)<br/>
+                        • <strong className="text-warning">Meta: manter abaixo de 7%</strong>
+                      </div>
+                    </div>
+                  </div>
+                </h4>
+                <p>{smartMessages.churnRate}</p>
+              </div>
+            )}
+            {smartMessages.nps && (
+              <div className="message-card">
+                <h4>⭐ NPS</h4>
+                <p>{smartMessages.nps}</p>
+              </div>
+            )}
+          </div>
+          {smartMessages.general && (
+            <div className="message-card message-card--general">
+              <h4>🎯 Avaliação Geral</h4>
+              <p>{smartMessages.general}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Resumo geral */}
       <div className="card">
         <h2>Resumo Geral - Últimos 12 Meses</h2>
