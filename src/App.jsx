@@ -9,6 +9,7 @@ import ReportTab from './components/ReportTab.jsx';
 import DashboardTab from './components/DashboardTab.jsx';
 import Header from './components/Header.jsx';
 import ToastContainer from './components/ToastContainer.jsx';
+import { useToast } from './contexts/ToastContext';
 import {
   useDashboard,
   useProfessors,
@@ -31,6 +32,10 @@ export default function App() {
   const [churnRate, setChurnRate] = useState(0);
   const [isSavingMetrics, setIsSavingMetrics] = useState(false);
   const [isEditingMetrics, setIsEditingMetrics] = useState(false);
+  const [isCreatingProfessor, setIsCreatingProfessor] = useState(false);
+
+  // Toast notifications
+  const { showSuccess, showError } = useToast();
 
   // Estados de navegação
   const [selectedProfessorId, setSelectedProfessorId] = useState(null);
@@ -39,7 +44,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Hooks customizados
-  const { professors } = useProfessors();
+  const { professors, createProfessor } = useProfessors();
   const dashboardHook = useDashboard();
   const performance = usePerformance(selectedProfessorId, selectedMonth, selectedYear);
   const evaluation = useEvaluation(selectedProfessorId, selectedMonth, selectedYear);
@@ -56,9 +61,11 @@ export default function App() {
     setIsSavingMetrics(true);
     try {
       await dashboardHook.saveMetrics(selectedMonth, selectedYear, activeStudents, churnRate);
+      showSuccess('Métricas salvas com sucesso!');
       setIsEditingMetrics(false); // Após salvar, não está mais editando
     } catch (error) {
       console.error('Erro ao salvar métricas:', error);
+      showError('Erro ao salvar métricas. Tente novamente.');
     }
     setIsSavingMetrics(false);
   };
@@ -71,6 +78,19 @@ export default function App() {
   const handleChurnRateChange = (value) => {
     setChurnRate(value);
     setIsEditingMetrics(true);
+  };
+
+  const handleCreateProfessor = async (firstName, lastName) => {
+    setIsCreatingProfessor(true);
+    try {
+      await createProfessor(firstName, lastName);
+      showSuccess(`Professor ${firstName} ${lastName} criado com sucesso!`);
+    } catch (error) {
+      console.error('Erro ao criar professor:', error);
+      showError('Erro ao criar professor. Tente novamente.');
+      throw error;
+    }
+    setIsCreatingProfessor(false);
   };
 
   // Carregar dados do dashboard quando necessário
@@ -122,6 +142,8 @@ export default function App() {
           onChurnRateChange={handleChurnRateChange}
           onSaveMetrics={handleSaveMetrics}
           isSavingMetrics={isSavingMetrics}
+          onCreateProfessor={handleCreateProfessor}
+          isCreatingProfessor={isCreatingProfessor}
         />
 
         <div className="content">

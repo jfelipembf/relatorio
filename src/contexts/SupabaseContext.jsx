@@ -103,6 +103,20 @@ export const SupabaseProvider = ({ children }) => {
 
       if (error) throw error;
       return data;
+    },
+
+    create: async (firstName, lastName) => {
+      const { data, error } = await supabase
+        .from('professors')
+        .insert({
+          first_name: firstName,
+          last_name: lastName
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     }
   };
 

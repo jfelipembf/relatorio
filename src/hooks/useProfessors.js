@@ -22,9 +22,20 @@ export const useProfessors = () => {
     loadProfessors();
   }, []);
 
+  const createProfessor = async (firstName, lastName) => {
+    try {
+      await professors.create(firstName, lastName);
+      await loadProfessors(); // Recarrega a lista após criar
+    } catch (error) {
+      console.error('Erro ao criar professor:', error);
+      throw error;
+    }
+  };
+
   return {
     professors: professorsList,
     isLoading,
-    refetch: loadProfessors
+    refetch: loadProfessors,
+    createProfessor
   };
 };
